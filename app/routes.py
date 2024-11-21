@@ -230,7 +230,7 @@ def get_all_trivias():
             "id": trivia.id,
             "name": trivia.name,
             "description": trivia.description,
-            "questions": [{"id": q.id, "question_text": q.question_text, "difficulty": q.difficulty, "correct_option": q.correct_option} for q in trivia.questions],
+            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions],
             "users": [{"id": user.id, "name": user.name} for user in trivia.users]
         }
         trivias_data.append(trivia_data)
@@ -418,7 +418,7 @@ def get_user_trivias(user_id):
             "id": trivia.id,
             "name": trivia.name,
             "description": trivia.description,
-            "questions": [{"id": q.id, "question_text": q.question_text, "difficulty": q.difficulty} for q in trivia.questions]
+            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions]
         }
         trivias_data.append(trivia_data)
 
