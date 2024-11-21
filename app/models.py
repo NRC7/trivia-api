@@ -33,7 +33,7 @@ class Question(db.Model):
     option_1 = db.Column(db.String(100), nullable=False)
     option_2 = db.Column(db.String(100), nullable=False)
     option_3 = db.Column(db.String(100), nullable=False)
-    difficulty = db.Column(db.String(50), nullable=False)
+    difficulty = db.Column(db.Integer, nullable=False)
     trivias = db.relationship('Trivia', secondary=trivia_questions, back_populates='questions')
 
     def __repr__(self):
