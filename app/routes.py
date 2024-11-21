@@ -2,9 +2,12 @@ from flask import Flask, Blueprint, request, jsonify
 from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import BadRequest
 from app.models import Question, Trivia, Participate, Ranking, User
 from app.database import db
 from sqlalchemy.exc import IntegrityError
+from datetime import timedelta
+import re
 
 
 app = Flask(__name__)
@@ -19,69 +22,47 @@ jwt = JWTManager(app)
 # Endpoint para registrar usuarios
 @main.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role', 'jugador')  # Por defecto, todos son jugadores
-
-    if not all([name, email, password]):
-        return jsonify({"code": 400, "message": "Datos incompletos"}), 400
-
-    if get_user_by_email(email):
-        return jsonify({"code": 400, "message": "Usuario ya registrado"}), 400
-
-    # Registrar usuario en la base de datos
-    user = register_user(name, email, generate_password_hash(password), role)
-    return jsonify({"code": 201, "message": "Usuario registrado", "user": {"id": user.id, "name": user.name, "role": user.role}}), 201
-
-# Endpoint para login
-@main.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
-
-    # Validar usuario
-    user = get_user_by_email(email)
-    if not user or not check_password_hash(user.password, password):
-        return jsonify({"code": 401, "message": "Credenciales inválidas"}), 401
-
-    # Crear token
-    access_token = create_access_token(identity={"id": user.id, "role": user.role})
-    return jsonify({"code": 200, "message": "Login exitoso", "token": access_token}), 200
-
-# Ruta protegida para prueba
-@main.route('/protected', methods=['GET'])
-@jwt_required()
-def protected():
-    current_user = get_jwt_identity()  # Extrae información del token
-    return jsonify({"message": f"Bienvenido, {current_user['id']} con rol {current_user['role']}"}), 200
-
-
-# Ruta de prueba
-@main.route('/welcome')
-def index():
-    return "¡Bienvenido a la API de Trivia!"
-
-# Rutas para usuarios
-@main.route('/users', methods=['POST'])
-def create_user_route():
-
-    data = request.get_json()
-
     try:
         # Intentar crear un nuevo usuario
-        user = create_user(data['name'], data['email'])
-        return jsonify({
-            "code": "201",
-            "message": "Usuario creado exitosamente",
-            "data": {
-                "id": user.id,
-                "name": user.name,
-                "email": user.email
-            }
-        }), 201
+        data = request.get_json()
+        name = data.get('name')
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role', 'jugador')  # Por defecto, todos son jugadores
+
+        # Verificar que todos los campos estén presentes
+        if not name or not email or not password:
+            return jsonify({
+                "code": "400",
+                "message": "Faltan datos obligatorios: nombre, correo o contraseña"
+            }), 400
+        
+        # Validar formato del correo electrónico
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return jsonify({
+                "code": "400",
+                "message": "El correo electrónico no es válido"
+            }), 400
+
+        # Validar que el rol sea válido
+        if role not in ['admin', 'jugador']:
+            return jsonify({
+                "code": "400",
+                "message": "El rol debe ser 'admin' o 'jugador'"
+            }), 400
+        
+        # Verificar si el correo electrónico ya está registrado
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({
+                "code": "400",
+                "message": "El correo electrónico ya está registrado"
+            }), 400
+
+        # Registrar usuario en la base de datos
+        user = register_user(name, email, generate_password_hash(password), role)
+
+        return jsonify({"code": "201", "message": "Usuario registrado", "user": {"id": user.id, "name": user.name, "role": user.role}}), 201
 
     except IntegrityError as e:
         # Si hay un error de integridad (como clave duplicada)
@@ -94,10 +75,48 @@ def create_user_route():
         # Manejo de otros errores internos
         return jsonify({
             "code": "500",
-            "message": "Faltan datos necesarios"
+            "message": f"Faltan datos necesarios {e}"
         }), 500
+    
 
+# Endpoint para login
+@main.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    # Validar que el correo y la contraseña estén presentes
+    if not email or not password:
+        return jsonify({"code": "400", "message": "Correo y contraseña son requeridos"}), 400
+
+    # Validar formato del correo electrónico
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({"code": "400", "message": "El correo electrónico no es válido"}), 400
+
+    # Buscar al usuario por email
+    user = get_user_by_email(email)
+    
+    # Si no se encuentra el usuario o la contraseña es incorrecta
+    if not user or not check_password_hash(user.password, password):
+        return jsonify({"code": "401", "message": "Credenciales inválidas"}), 401
+
+    # Crear el token de acceso con identidad como el ID del usuario (convertido a string)
+    access_token = create_access_token(
+        identity=str(user.id),  # Asegurarse de que identity sea una cadena
+        expires_delta=timedelta(minutes=1)  # El token expirará en 1 minuto
+    )
+
+    return jsonify({
+        "code": "200",
+        "message": "Login exitoso",
+        "token": access_token
+    }), 200
+
+
+# Endpoint para obtener lista de usuarios
 @main.route('/users', methods=['GET'])
+@jwt_required()
 def get_users_route():
     # Obtener la lista de usuarios
     users = get_users()
@@ -113,21 +132,42 @@ def get_users_route():
         "code": "200",
         "message": "Usuarios recuperados exitosamente",
         "data": [
-            {"id": user.id, "name": user.name, "email": user.email} for user in users
+            {"id": user.id, "name": user.name, "email": user.email, "rol": user.role} for user in users
         ]
     }), 200
 
+
+
 # Rutas para preguntas
 @main.route('/questions', methods=['POST'])
+@jwt_required()
 def create_question_route():
+
+    # Obtener el usuario autenticado desde el token
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar que el usuario sea un administrador
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
 
     data = request.get_json()
 
-    # Validación de campos
+    # Validación de campos obligatorios
     if not all(key in data for key in ['question_text', 'correct_option', 'options', 'difficulty']):
         return jsonify({
             "code": "400",
             "message": "Faltan datos necesarios"
+        }), 400
+    
+    # Validar que 'options' sea una lista y contenga más de una opción
+    if not isinstance(data['options'], list) or len(data['options']) < 2:
+        return jsonify({
+            "code": "400",
+            "message": "Se requiere ingresar al menos dos alternativas por pregunta"
         }), 400
 
     try:
@@ -153,15 +193,35 @@ def create_question_route():
             "code": "400",
             "message": "La pregunta ya existe o hay un error en los datos proporcionados."
         }), 400
+    
+    except BadRequest as e:
+        return jsonify({
+            "code": "400",
+            "message": "La solicitud es incorrecta: " + str(e)
+        }), 400
 
     except Exception as e:
         return jsonify({
             "code": "500",
             "message": "Faltan datos necesarios"
         }), 500
+    
 
 @main.route('/questions', methods=['GET'])
+@jwt_required()
 def get_questions_route():
+
+    # Obtener el usuario autenticado desde el token
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar que el usuario sea un administrador
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
     questions = get_questions()
 
     if not questions:
@@ -170,27 +230,45 @@ def get_questions_route():
             "message": "No se encontraron preguntas.",
         }), 404
 
-    response_data = [
-        {
-            "id": q.id,
-            "question_text": q.question_text,
-            "options": {
-                "option_1": q.option_1,
-                "option_2": q.option_2,
-                "option_3": q.option_3
-            },
-            "correct_option": q.correct_option,
-            "difficulty": q.difficulty
-        }
-        for q in questions
-    ]
+    try:
+        response_data = [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "options": {
+                    "option_1": q.option_1,
+                    "option_2": q.option_2,
+                    "option_3": q.option_3
+                },
+                "correct_option": q.correct_option,
+                "difficulty": q.difficulty
+            }
+            for q in questions
+        ]
 
-    return jsonify({
-        "code": "200",
-        "length": len(response_data),
-        "message": "Preguntas recuperadas exitosamente",
-        "data": response_data
-    }), 200
+        return jsonify({
+            "code": "200",
+            "length": len(response_data),
+            "message": "Preguntas recuperadas exitosamente",
+            "data": response_data
+        }), 200
+    except IntegrityError as e:
+        return jsonify({
+            "code": "400",
+            "message": "La pregunta ya existe o hay un error en los datos proporcionados."
+        }), 400
+    
+    except BadRequest as e:
+        return jsonify({
+            "code": "400",
+            "message": "La solicitud es incorrecta: " + str(e)
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": "Faltan datos necesarios"
+        }), 500
 
 
 # Rutas para trivias
