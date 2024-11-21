@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\nrodr\AndroidStudioProjects\xd\venv"
+VIRTUAL_ENV="C:\Users\nrodr\AndroidStudioProjects\Trivia-Api\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
