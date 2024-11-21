@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias
-from app.models import Question, Trivia, Participate, Ranking
+from app.models import Question, Trivia, Participate, Ranking, User
 from app.database import db
 
 
@@ -62,6 +62,7 @@ def create_trivia_route():
     # Verificar que 'name' y 'description' estén presentes en los datos
     name = data.get('name')
     description = data.get('description', '')  # Si no se manda descripción, será un string vacío
+    user_ids = data.get('user_ids', [])
 
     # Validar que se haya proporcionado un nombre
     if not name:
@@ -83,6 +84,18 @@ def create_trivia_route():
     # Asociar las preguntas válidas con la trivia
     new_trivia.questions = valid_questions
 
+    # Obtener los usuarios de la base de datos mediante los IDs proporcionados
+    valid_users = []
+    for user_id in user_ids:
+        user = User.query.get(user_id)
+        if user:
+            valid_users.append(user)
+        else:
+            return jsonify({"error": f"El usuario con ID {user_id} no existe"}), 400
+
+    # Asociar los usuarios válidos con la trivia
+    new_trivia.users = valid_users
+
     # Guardar en la base de datos
     db.session.add(new_trivia)
     db.session.commit()
@@ -93,7 +106,8 @@ def create_trivia_route():
             "id": new_trivia.id,
             "name": new_trivia.name,
             "description": new_trivia.description,
-            "questions": [q.id for q in valid_questions]
+            "questions": [q.id for q in valid_questions],
+            "user_ids": [user.id for user in valid_users]
         }
     }), 201
 
@@ -115,7 +129,8 @@ def get_all_trivias():
             "id": trivia.id,
             "name": trivia.name,
             "description": trivia.description,
-            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions]
+            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions],
+            "user_ids": [user.id for user in trivia.users]
         }
         trivias_data.append(trivia_data)
 
@@ -127,7 +142,7 @@ def get_all_trivias():
 def participate():
     data = request.get_json()
 
-    user_name = data.get('user_name')
+    user_id = data.get('user_id') 
     trivia_id = data.get('trivia_id')
     answers = data.get('answers')  # Ejemplo: { "1": "option_1", "2": "option_3" }
 
@@ -135,6 +150,11 @@ def participate():
     trivia = Trivia.query.get(trivia_id)
     if not trivia:
         return jsonify({"error": "Trivia no encontrada"}), 404
+    
+     # Verificar que el usuario existe
+    user = User.query.get(user_id)  # Obtener el usuario a través del user_id
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
 
     # Validar respuestas y calcular el puntaje
     score = 0
@@ -173,12 +193,12 @@ def participate():
         correct_answers[question.id] = correct_option
 
     # Guardar participación
-    participation = Participate(user_name=user_name, trivia_id=trivia_id, answers=answers, score=score)
+    participation = Participate(user_id=user_id, trivia_id=trivia_id, answers=answers, score=score)
     db.session.add(participation)
     db.session.commit()
 
     # Guardar en el ranking
-    ranking = Ranking(trivia_id=trivia_id, user_name=user_name, score=score)
+    ranking = Ranking(trivia_id=trivia_id, user_id=user_id, score=score)
     db.session.add(ranking)
     db.session.commit()
 
@@ -206,7 +226,7 @@ def ranking(trivia_id):
         return jsonify({"error": "No hay participantes para esta trivia"}), 404
 
     # Construir la lista de rankings
-    ranking_list = [{"user_name": ranking.user_name, "score": ranking.score} for ranking in rankings]
+    ranking_list = [{"user_id": ranking.user_id, "score": ranking.score} for ranking in rankings]
 
     # Retornar la respuesta con el nombre de la trivia
     return jsonify({
