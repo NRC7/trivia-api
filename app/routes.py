@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias
-from app.models import Question, Trivia
+from app.models import Question, Trivia, Participate, Ranking
 from app.database import db
 
 
@@ -77,3 +77,48 @@ def create_trivia_route():
 def get_trivias_route():
     trivias = get_trivias()
     return jsonify([{"id": t.id, "name": t.name} for t in trivias])
+
+# Ruta para participar en una trivia
+@main.route('/participate', methods=['POST'])
+def participate():
+    data = request.get_json()
+    
+    user_name = data.get('user_name')
+    trivia_id = data.get('trivia_id')
+    answers = data.get('answers')
+
+    # Verificar que la trivia existe
+    trivia = Trivia.query.get(trivia_id)
+    if not trivia:
+        return jsonify({"error": "Trivia no encontrada"}), 404
+
+    # Validar respuestas y calcular el puntaje
+    score = 0
+    for question in trivia.questions:
+        correct_option = question.correct_option
+        user_answer = answers.get(str(question.id))
+        if user_answer == correct_option:
+            score += 1
+
+    # Guardar participación
+    participation = Participate(user_name=user_name, trivia_id=trivia_id, answers=answers, score=score)
+    db.session.add(participation)
+    db.session.commit()
+
+    # Guardar en el ranking
+    ranking = Ranking(trivia_id=trivia_id, user_name=user_name, score=score)
+    db.session.add(ranking)
+    db.session.commit()
+
+    return jsonify({"message": "Participación registrada", "score": score}), 201
+
+# Ruta para obtener el ranking de una trivia
+@main.route('/ranking/<int:trivia_id>', methods=['GET'])
+def ranking(trivia_id):
+    rankings = Ranking.query.filter_by(trivia_id=trivia_id).order_by(Ranking.score.desc()).all()
+
+    if not rankings:
+        return jsonify({"error": "No hay participantes para esta trivia"}), 404
+
+    ranking_list = [{"user_name": ranking.user_name, "score": ranking.score, "created_at": ranking.created_at.strftime('%Y-%m-%d %H:%M:%S')} for ranking in rankings]
+    return jsonify({"ranking": ranking_list}), 200

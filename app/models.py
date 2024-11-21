@@ -36,3 +36,28 @@ class User(db.Model):
 
     def __repr__(self):
         return f'<User {self.name}>'
+    
+    # Tabla para almacenar las participaciones de los usuarios
+class Participate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_name = db.Column(db.String(100), nullable=False)
+    trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
+    answers = db.Column(db.JSON, nullable=False)  # Respuestas del usuario
+    score = db.Column(db.Integer, nullable=False)  # Puntuación del participante
+    trivia = db.relationship('Trivia', backref=db.backref('participations', lazy=True))
+
+    def __repr__(self):
+        return f'<Participate {self.user_name} - Trivia {self.trivia_id}>'
+
+# Tabla para almacenar los rankings de los usuarios
+class Ranking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
+    user_name = db.Column(db.String(100), nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    trivia = db.relationship('Trivia', backref=db.backref('rankings', lazy=True))
+
+    def __repr__(self):
+        return f'<Ranking {self.user_name} - Trivia {self.trivia_id}>'
