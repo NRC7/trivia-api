@@ -293,25 +293,28 @@ def participate():
         # Obtener el valor de la opción seleccionada por el usuario
         option_value = options.get(user_answer)
 
+        is_correct = option_value == correct_option
+        
         # Validar si la respuesta del usuario es correcta
-        if option_value == correct_option:
+        if is_correct:
             # Obtener la dificultad de la pregunta (como número)
             difficulty = question.difficulty  # Asegúrate de que 'difficulty' sea un número entero
 
             # Ajustar el puntaje según la dificultad
-            if difficulty == 1:  # Dificultad fácil
-                score += 1  # 1 punto por respuesta correcta
-            elif difficulty == 2:  # Dificultad media
-                score += 2  # 2 puntos por respuesta correcta
-            elif difficulty == 3:  # Dificultad difícil
-                score += 3  # 3 puntos por respuesta correcta
+            if difficulty == "fácil":  
+                score += 1  
+            elif difficulty == "medio": 
+                score += 2  
+            elif difficulty == "difícil":  
+                score += 3  
             else:
                 print(f"Dificultad desconocida para la pregunta {question.id}: {difficulty}")  # Si la dificultad es desconocida 
         
         # Guardar la respuesta correcta para la pregunta
         correct_answers[question.id] = {
             "correct_answer": correct_option,
-            "difficulty": question.difficulty
+            "difficulty": question.difficulty,
+            "is_correct": "correcta" if is_correct else "incorrecta"
         }
 
     # Guardar participación
