@@ -10,11 +10,21 @@ trivia_questions = db.Table(
 class Trivia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255), nullable=True)  # Se agrega description aquí
+    
+    # Relación con preguntas a través de la tabla intermedia trivia_questions
     questions = db.relationship('Question', secondary=trivia_questions, back_populates='trivias')
+    
+    # Relación con participaciones
+    participations = db.relationship('Participate', back_populates='trivia', cascade='all, delete-orphan')
+    
+    # Relación con rankings
+    rankings = db.relationship('Ranking', back_populates='trivia', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Trivia {self.name}>'
+
+
 
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -42,22 +52,25 @@ class Participate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(100), nullable=False)
     trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
-    answers = db.Column(db.JSON, nullable=False)  # Respuestas del usuario
-    score = db.Column(db.Integer, nullable=False)  # Puntuación del participante
-    trivia = db.relationship('Trivia', backref=db.backref('participations', lazy=True))
+    answers = db.Column(db.JSON, nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+
+    # Relación con Trivia
+    trivia = db.relationship('Trivia', back_populates='participations')
 
     def __repr__(self):
-        return f'<Participate {self.user_name} - Trivia {self.trivia_id}>'
+        return f'<Participate {self.user_name}>'
 
-# Tabla para almacenar los rankings de los usuarios
+
 class Ranking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
     user_name = db.Column(db.String(100), nullable=False)
     score = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    trivia = db.relationship('Trivia', backref=db.backref('rankings', lazy=True))
+    # Relación con Trivia
+    trivia = db.relationship('Trivia', back_populates='rankings')
 
     def __repr__(self):
-        return f'<Ranking {self.user_name} - Trivia {self.trivia_id}>'
+        return f'<Ranking {self.user_name}>'
+
