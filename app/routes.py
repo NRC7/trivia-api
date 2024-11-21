@@ -389,3 +389,47 @@ def ranking(trivia_id):
         }
     }), 200
 
+# Ruta para obtener las trivias de un usuario en especifico
+@main.route('/users/<int:user_id>/trivias', methods=['GET'])
+def get_user_trivias(user_id):
+    # Buscar el usuario por ID
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({
+            "code": "404",
+            "message": "Usuario no encontrado"
+        }), 404
+
+    # Obtener las trivias asociadas a este usuario
+    trivias = user.trivias  # Esto es posible gracias a la relación definida en el modelo User
+    
+    # Si no tiene trivias asignadas
+    if not trivias:
+        return jsonify({
+            "code": "404",
+            "message": "Este usuario no tiene trivias asignadas"
+        }), 404
+
+    # Formatear las trivias para la respuesta
+    trivias_data = []
+    for trivia in trivias:
+        trivia_data = {
+            "id": trivia.id,
+            "name": trivia.name,
+            "description": trivia.description,
+            "questions": [{"id": q.id, "question_text": q.question_text, "difficulty": q.difficulty} for q in trivia.questions]
+        }
+        trivias_data.append(trivia_data)
+
+    # Devolver la lista de trivias asignadas
+    return jsonify({
+        "code": "200",
+        "message": f"Trivias de {user.name} obtenidas exitosamente",
+        "data": trivias_data,
+        "len": len(trivias_data),
+        "user": {
+            "id": user.id,
+            "user_name": user.name
+            }
+    }), 200
