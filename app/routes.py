@@ -1,11 +1,17 @@
 from flask import Flask, Blueprint, request, jsonify
-from .crud import get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email, create_participation, create_ranking, update_user, delete_user, update_question, delete_question, update_trivia, delete_trivia
+from .crud import (
+    get_users, update_user, delete_user, 
+    get_questions, create_question, update_question, delete_question,
+    get_trivias, create_trivia, update_trivia, delete_trivia, register_user,
+    get_user_by_email, create_participation, create_ranking
+)
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import BadRequest
 from app.models import Question, Trivia, Ranking, User
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta
+from middlewares.middlewares import jwt_required_middleware
 import re
 import os
 
@@ -114,18 +120,9 @@ def login():
 
 # Endpoint para obtener lista de usuarios
 @main.route('/users', methods=['GET'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def get_users_route():
-    # Obtener la lista de usuarios
     users = get_users()
-
-    # Validación: Si no hay usuarios, devolver 404
-    if not users:
-        return jsonify({
-            "code": "404",
-            "message": "No se encontraron usuarios"
-        }), 404
-
     return jsonify({
         "code": "200",
         "message": "Usuarios recuperados exitosamente",
@@ -137,103 +134,46 @@ def get_users_route():
 
 # Endpoint para actualizar un usuario
 @main.route('/users/<int:user_id>', methods=['PUT'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def update_user_route(user_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    # Verificar si el usuario es administrador
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
 
     data = request.get_json()
 
-    try:
-        updated_user = update_user(user_id, data)
+    updated_user = update_user(user_id, data)
 
-        if not updated_user:
-            return jsonify({
-                "code": "404",
-                "message": "Usuario no encontrado"
-            }), 404
-
+    if not updated_user:
         return jsonify({
-            "code": "200",
-            "message": "Usuario actualizado exitosamente",
-            "data": {
-                "id": updated_user.id,
-                "name": updated_user.name,
-                "email": updated_user.email,
-                "role": updated_user.role
-            }
-        }), 200
+            "code": "404",
+            "message": "Usuario no encontrado"
+    }), 404
 
-    except IntegrityError:
-        return jsonify({
-            "code": "400",
-            "message": "Error de integridad al actualizar el usuario."
-        }), 400
-
-    except Exception as e:
-        return jsonify({
-            "code": "500",
-            "message": f"Error interno: {str(e)}"
-        }), 500
+    return jsonify({
+        "code": "200",
+        "message": "Usuario actualizado exitosamente",
+        "data": {
+            "id": updated_user.id,
+            "name": updated_user.name,
+            "email": updated_user.email,
+            "role": updated_user.role
+        }
+    }), 200
 
 
 # Endpoint para borrar un usuario
 @main.route('/users/<int:user_id>', methods=['DELETE'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def delete_user_route(user_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    if not delete_user(user_id):
 
-    # Verificar si el usuario es administrador
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
-    try:
-        result = delete_user(user_id)
-
-        if not result:
-            return jsonify({
-                "code": "404",
-                "message": "Usuario no encontrado"
-            }), 404
-
-        return jsonify({
-            "code": "200",
-            "message": "Usuario eliminado exitosamente"
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "code": "500",
-            "message": f"Error interno: {str(e)}"
-        }), 500
+        return jsonify({"code": "404", "message": "Usuario no encontrado"}), 404
+    
+    return jsonify({"code": "200", "message": "Usuario eliminado exitosamente"}), 200
 
 
 # Endpoint para crear una pregunta
 @main.route('/questions', methods=['POST'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def create_question_route():
-
-    # Obtener el usuario autenticado desde el token
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    # Verificar que el usuario sea un administrador
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
 
     data = request.get_json()
 
@@ -290,20 +230,8 @@ def create_question_route():
 
 # Endpoint para obtener todas las preguntas
 @main.route('/questions', methods=['GET'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def get_questions_route():
-
-    # Obtener el usuario autenticado desde el token
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    # Verificar que el usuario sea un administrador
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
     questions = get_questions()
 
     if not questions:
@@ -355,17 +283,8 @@ def get_questions_route():
 
 # Endpoint para actualizar una pregunta
 @main.route('/questions/<int:question_id>', methods=['PUT'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def update_question_route(question_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
     data = request.get_json()
 
     try:
@@ -402,17 +321,8 @@ def update_question_route(question_id):
 
 # Endpoint para borrar una pregunta
 @main.route('/questions/<int:question_id>', methods=['DELETE'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def delete_question_route(question_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
     try:
         result = delete_question(question_id)
 
@@ -436,20 +346,8 @@ def delete_question_route(question_id):
 
 # Endpoint para crear una trivia
 @main.route('/trivias', methods=['POST'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def create_trivia_route():
-
-     # Obtener el usuario autenticado desde el token
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    # Verificar que el usuario sea un administrador
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-    
     data = request.get_json()
 
     # Validación de campos obligatorios
@@ -471,9 +369,6 @@ def create_trivia_route():
             "message": "Faltan datos necesarios",  
         }), 400
 
-    # Crear la nueva trivia
-    #new_trivia = Trivia(name=name, description=description)
-
     # Obtener las preguntas de la base de datos mediante los IDs proporcionados
     question_ids = data.get('question_ids', [])
     valid_questions = []
@@ -486,9 +381,6 @@ def create_trivia_route():
                 "code": "400",
                 "message": f"La pregunta con ID {question_id} no existe"
             }), 400
-
-    # Asociar las preguntas válidas con la trivia
-    #new_trivia.questions = valid_questions
 
     # Obtener los usuarios de la base de datos mediante los IDs proporcionados
     valid_users = []
@@ -543,7 +435,7 @@ def create_trivia_route():
 
 # Endpoint obtener todas las trivias
 @main.route('/trivias', methods=['GET'])
-@jwt_required()
+@jwt_required_middleware()
 def get_all_trivias():
     # Obtener todas las trivias de la base de datos
     trivias = get_trivias()
@@ -586,7 +478,7 @@ def get_all_trivias():
 
 # Endpoint para obtener una trivia por su id
 @main.route('/trivias/<int:trivia_id>', methods=['GET'])
-@jwt_required()
+@jwt_required_middleware()
 def get_trivia_by_id(trivia_id):
     # Obtener la trivia por ID
     trivia = Trivia.query.get(trivia_id)
@@ -614,17 +506,8 @@ def get_trivia_by_id(trivia_id):
 
 # Endpoint para actualizar una trivia
 @main.route('/trivias/<int:trivia_id>', methods=['PUT'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def update_trivia_route(trivia_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
     data = request.get_json()
 
     try:
@@ -655,17 +538,8 @@ def update_trivia_route(trivia_id):
 
 # Endpoint para borrar una trivia
 @main.route('/trivias/<int:trivia_id>', methods=['DELETE'])
-@jwt_required()
+@jwt_required_middleware(role="admin")
 def delete_trivia_route(trivia_id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-
-    if current_user.role != 'admin':
-        return jsonify({
-            "code": "403",
-            "message": "Acceso denegado. Se requiere rol de administrador"
-        }), 403
-
     try:
         result = delete_trivia(trivia_id)
 
@@ -689,6 +563,7 @@ def delete_trivia_route(trivia_id):
 
 # Endpoint para obtener las trivias de un usuario por su user_id
 @main.route('/users/<int:user_id>/trivias', methods=['GET'])
+@jwt_required_middleware()
 def get_user_trivias(user_id):
 
     user = User.query.get(user_id)
@@ -735,7 +610,7 @@ def get_user_trivias(user_id):
 
 # Endpoint para que un user participe en una trivia
 @main.route('/participate/<int:trivia_id>', methods=['POST'])
-@jwt_required()
+@jwt_required_middleware()
 def participate(trivia_id):
 
     data = request.get_json()
@@ -899,7 +774,7 @@ def participate(trivia_id):
 
 # Endpoint para obtener el ranking de una trivia por su trivia_id
 @main.route('/ranking/<int:trivia_id>', methods=['GET'])
-@jwt_required()
+@jwt_required_middleware()
 def ranking(trivia_id):
     # Obtener la trivia por ID
     trivia = Trivia.query.get(trivia_id)
