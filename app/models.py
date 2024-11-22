@@ -65,7 +65,7 @@ class User(db.Model):
     # Tabla para almacenar las participaciones de los usuarios
 class Participate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Usamos user_id en vez de user_name
+    user_name = db.Column(db.String(100), db.ForeignKey('user.name'), nullable=False)  # Usamos user_id en vez de user_name
     trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
     answers = db.Column(db.JSON, nullable=False)
     score = db.Column(db.Integer, nullable=False)

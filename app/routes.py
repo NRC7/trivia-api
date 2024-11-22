@@ -1,5 +1,5 @@
 from flask import Flask, Blueprint, request, jsonify
-from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email
+from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email, create_participation, create_ranking
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import BadRequest
@@ -104,7 +104,7 @@ def login():
     # Crear el token de acceso con identidad como el ID del usuario (convertido a string)
     access_token = create_access_token(
         identity=str(user.id),  # Asegurarse de que identity sea una cadena
-        expires_delta=timedelta(minutes=1)  # El token expirará en 1 minuto
+        expires_delta=timedelta(minutes=30)  # El token expirará en 1 minuto
     )
 
     return jsonify({
@@ -137,7 +137,6 @@ def get_users_route():
     }), 200
 
 
-
 # Rutas para preguntas
 @main.route('/questions', methods=['POST'])
 @jwt_required()
@@ -163,11 +162,11 @@ def create_question_route():
             "message": "Faltan datos necesarios"
         }), 400
     
-    # Validar que 'options' sea una lista y contenga más de una opción
-    if not isinstance(data['options'], list) or len(data['options']) < 2:
+    # Validar que se proporcionen exactamente 3 opciones
+    if len(data['options']) != 3:
         return jsonify({
             "code": "400",
-            "message": "Se requiere ingresar al menos dos alternativas por pregunta"
+            "message": "Debes proporcionar exactamente 3 alternativas por pregunta."
         }), 400
 
     try:
@@ -273,20 +272,39 @@ def get_questions_route():
 
 # Rutas para trivias
 @main.route('/trivias', methods=['POST'])
+@jwt_required()
 def create_trivia_route():
+
+     # Obtener el usuario autenticado desde el token
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar que el usuario sea un administrador
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+    
     data = request.get_json()
 
-    # Verificar que 'name' y 'description' estén presentes en los datos
-    name = data.get('name')
-    description = data.get('description', '')  # Si no se manda descripción, será un string vacío
-    user_ids = data.get('user_ids', [])
-
-    # Validar que se haya proporcionado un nombre
-    if not name:
+    # Validación de campos obligatorios
+    if not all(key in data for key in ['name', 'description', 'user_ids', 'question_ids']):
         return jsonify({
             "code": "400",
-            "message": "Debes ingresar nombre",  
-            "error": "BAD_REQUEST"
+            "message": "Faltan datos necesarios"
+        }), 400
+
+    # Verificar que estén presentes todos los datos
+    name = data.get('name')
+    description = data.get('description', '')  
+    user_ids = data.get('user_ids', [])
+    question_ids = data.get('question_ids', [])
+
+    if not name or not description or not user_ids or not question_ids:
+        return jsonify({
+            "code": "400",
+            "message": "Faltan datos necesarios",  
         }), 400
 
     # Crear la nueva trivia
@@ -302,8 +320,7 @@ def create_trivia_route():
         else:
             return jsonify({
                 "code": "400",
-                "message": f"La pregunta con ID {question_id} no existe",
-                "error": "BAD_REQUEST"
+                "message": f"La pregunta con ID {question_id} no existe"
             }), 400
 
     # Asociar las preguntas válidas con la trivia
@@ -318,32 +335,57 @@ def create_trivia_route():
         else:
             return jsonify({
                 "code": "400",
-                "message": f"El usuario con ID {user_id} no existe",
-                "error": "BAD_REQUEST"
+                "message": f"El usuario con ID {user_id} no existe"
             }), 400
 
-    # Asociar los usuarios válidos con la trivia
-    new_trivia.users = valid_users
+    try:
+        trivia = create_trivia(
+                    data['name'], 
+                    data['description'], 
+                    data['user_ids'], 
+                    data['question_ids']
+                )
 
-    # Guardar en la base de datos
-    db.session.add(new_trivia)
-    db.session.commit()
+        # Asociar los usuarios válidos con la trivia
+        # new_trivia.users = valid_users
 
-    return jsonify({
-        "code": "201",
-        "message": "Trivia creada exitosamente",
-        "data": {
-            "id": new_trivia.id,
-            "name": new_trivia.name,
-            "description": new_trivia.description,
-            "questions": [q.id for q in valid_questions],
-            "users": [{"id": user.id, "name": user.name} for user in valid_users]
-        }
-    }), 201
+        # # Guardar en la base de datos
+        # db.session.add(new_trivia)
+        # db.session.commit()
 
+        return jsonify({
+            "code": "201",
+            "message": "Trivia creada exitosamente",
+            "data": {
+                "id": trivia.id,
+                "name": trivia.name,
+                "description": trivia.description,
+                "questions": [q.id for q in valid_questions],
+                "users": [{"id": user.id, "name": user.name} for user in valid_users]
+            }
+        }), 201
+
+    except IntegrityError as e:
+        return jsonify({
+            "code": "400",
+            "message": "La trivia ya existe o hay un error en los datos proporcionados."
+        }), 400
+    
+    except BadRequest as e:
+        return jsonify({
+            "code": "400",
+            "message": "La solicitud es incorrecta: " + str(e)
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": "Faltan datos necesarios"
+        }), 500
 
 
 @main.route('/trivias', methods=['GET'])
+@jwt_required()
 def get_all_trivias():
     # Obtener todas las trivias de la base de datos
     trivias = Trivia.query.all()
@@ -372,20 +414,78 @@ def get_all_trivias():
     }), 200
 
 
+# Ruta para obtener una trivia
+@main.route('/trivias/<int:trivia_id>', methods=['GET'])
+@jwt_required()
+def get_trivia_by_id(trivia_id):
+    # Obtener la trivia por ID
+    trivia = Trivia.query.get(trivia_id)
+    if not trivia:
+        return jsonify({
+            "code": "404",
+            "message": "Trivia no encontrada",
+        }), 404
+
+    # Retornar la respuesta con el nombre de la trivia
+    return jsonify({
+        "code": "200",
+        "message": "Ranking recuperado exitosamente",
+        "data": {
+            "trivia": {
+                "id": trivia.id,
+                "name": trivia.name,
+                "description": trivia.description,
+                "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions],
+                "users": [{"id": user.id, "name": user.name} for user in trivia.users]
+            }
+        }
+    }), 200
+
+
 # Ruta para participar en una trivia
-@main.route('/participate', methods=['POST'])
-def participate():
+@main.route('/participate/<int:trivia_id>', methods=['POST'])
+@jwt_required()
+def participate(trivia_id):
+
     data = request.get_json()
 
-    user_id = data.get('user_id') 
-    trivia_id = data.get('trivia_id')
-    answers = data.get('answers')  # Ejemplo: { "1": "option_1", "2": "option_3" }
+    # Validar que trivia_id esté presente y sea el respectivo
+    if not trivia_id or trivia_id != data.get('trivia_id'):
+        return jsonify({
+            "code": "400",
+            "message": "El identificador de trivia proporcionado no coincide con el esperado"
+        }), 400
 
-    # Validar que los datos estén presentes
-    if not user_id or not trivia_id or not answers:
+    user_name = data.get('user_name')
+    answers = data.get('answers')
+
+    # Validar que user_name y answers estén presentes
+    if not user_name or not answers:
         return jsonify({
             "code": "400",
             "message": "Faltan datos necesarios"
+        }), 400
+    
+    # Verificar si el usuario existe
+    user = User.query.filter_by(name=user_name).first()
+    if not user:
+        return jsonify({
+            "code": "404",
+            "message": "Usuario no encontrado"
+        }), 404
+    
+    # Validar si "answers" está presente
+    if answers is None:
+        return jsonify({
+            "code": "400",
+            "message": "No se proporcionaron respuestas en la solicitud"
+        }), 400
+
+    # Validar que "answers" no esté vacío
+    if not isinstance(answers, dict) or not answers:
+        return jsonify({
+            "code": "400",
+            "message": "Las respuestas no pueden estar vacías"
         }), 400
 
     # Verificar que la trivia existe
@@ -396,21 +496,30 @@ def participate():
             "message": "Trivia no encontrada"
         }), 404
     
-    # Verificar que el usuario existe
-    user = User.query.get(user_id)
-    if not user:
+    # Obtener los IDs de las preguntas asociadas a la trivia
+    trivia_question_ids = {question.id for question in trivia.questions}
+    # Validar que los IDs de las respuestas del usuario estén dentro de los IDs de las preguntas de la trivia
+    invalid_question_ids = set(answers.keys()).difference(trivia_question_ids)
+    if invalid_question_ids:
         return jsonify({
-            "code": "404",
-            "message": "Usuario no encontrado"
+            "code": "400",
+            "message": f"Alguna(s) pregunta(s) no pertenece(n) a esta trivia: {list(invalid_question_ids)}"
+        }), 400
+    
+    # Verificar que "answers" tenga la cantidad de respuestas solicitadas
+    if len(answers) != len(trivia.questions):
+        return jsonify({
+            "code": "400",
+            "message": "Debes ingresar todas las respuestas solicitadas."
         }), 404
 
     # Validar respuestas y calcular el puntaje
     score = 0
-    correct_answers = {}  # Para devolver las respuestas correctas
+    correct_answers = {}
 
     for question in trivia.questions:
-        correct_option = question.correct_option  # La respuesta correcta, por ejemplo 'París'
-        user_answer = answers.get(str(question.id))  # Respuesta del usuario, como 'option_1'
+        correct_option = question.correct_option
+        user_answer = answers.get(str(question.id))
 
         # Acceder a las opciones de la pregunta (deberías tener 'option_1', 'option_2', 'option_3' en tu modelo)
         options = {
@@ -423,22 +532,19 @@ def participate():
         option_value = options.get(user_answer)
 
         is_correct = option_value == correct_option
-        
+
         # Validar si la respuesta del usuario es correcta
         if is_correct:
-            # Obtener la dificultad de la pregunta (como número)
-            difficulty = question.difficulty  # Asegúrate de que 'difficulty' sea un número entero
-
-            # Ajustar el puntaje según la dificultad
+            difficulty = question.difficulty  
             if difficulty == "fácil":  
                 score += 1  
             elif difficulty == "medio": 
-                score += 2  
+                score += 2
             elif difficulty == "difícil":  
                 score += 3  
             else:
-                print(f"Dificultad desconocida para la pregunta {question.id}: {difficulty}")  # Si la dificultad es desconocida 
-        
+                score += 0
+
         # Guardar la respuesta correcta para la pregunta
         correct_answers[question.id] = {
             "correct_answer": correct_option,
@@ -446,58 +552,83 @@ def participate():
             "is_correct": "correcta" if is_correct else "incorrecta"
         }
 
-    # Guardar participación
-    participation = Participate(user_id=user_id, trivia_id=trivia_id, answers=answers, score=score)
-    db.session.add(participation)
-    db.session.commit()
+    try:    
+        # Guardar participación
+        participation = create_participation(
+                        data['user_name'], 
+                        data['trivia_id'], 
+                        data['answers'], 
+                        score
+                    )
 
-    # Guardar en el ranking
-    ranking = Ranking(trivia_id=trivia_id, user_id=user_id, score=score)
-    db.session.add(ranking)
-    db.session.commit()
+        # Guardar en el ranking
+        ranking = create_ranking(
+                        data['trivia_id'], 
+                        user.id, 
+                        score
+                    )
 
-    # Responder con el puntaje y las respuestas correctas
-    return jsonify({
-        "code": "201",
-        "message": "Participación registrada",
-        "data": {
-            "score": score,
-            "correct_answers": correct_answers,  # Incluyendo las respuestas correctas
-            "trivia": {
-                "id": trivia.id,
-                "name": trivia.name
+        # Responder con el puntaje y las respuestas correctas
+        return jsonify({
+            "code": "201",
+            "message": "Participación registrada",
+            "data": {
+                "score": ranking.score,
+                "correct_answers": correct_answers,  
+                "trivia": {
+                    "id": trivia.id,
+                    "name": trivia.name
+                },
+                "user": {
+                    "name": participation.user_name
+                }
             }
-        }
-    }), 201
+        }), 201
+    
+    except IntegrityError as e:
+        return jsonify({
+            "code": "400",
+            "message": "Ya participaste en esta trivia o hay un error en los datos proporcionados."
+        }), 400
+    
+    except BadRequest as e:
+        return jsonify({
+            "code": "400",
+            "message": "La solicitud es incorrecta: " + str(e)
+        }), 400
 
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": "Faltan datos necesarios" + str(e)
+        }), 500
 
 
 # Ruta para obtener el ranking de una trivia
 @main.route('/ranking/<int:trivia_id>', methods=['GET'])
+@jwt_required()
 def ranking(trivia_id):
     # Obtener la trivia por ID
     trivia = Trivia.query.get(trivia_id)
     if not trivia:
         return jsonify({
-            "code": "400",
-            "message": "Trivia no encontrada",
-            "error": "BAD_REQUEST"
-        }), 400
+            "code": "404",
+            "message": "Trivia no encontrada"
+        }), 404
 
     # Obtener los rankings ordenados por puntaje de mayor a menor
     rankings = Ranking.query.filter_by(trivia_id=trivia_id).order_by(Ranking.score.desc()).all()
 
     if not rankings:
         return jsonify({
-            "code": "400",
-            "message": "No hay participantes para esta trivia",
-            "error": "BAD_REQUEST"
-        }), 400
+            "code": "404",
+            "message": "No hay participantes para esta trivia"
+        }), 404
 
     # Construir la lista de rankings
     ranking_list = [
         {
-            "user_id": ranking.user_id,
+            #"user_id": ranking.user_id,
             "user_name": ranking.user.name,
             "score": ranking.score
         }

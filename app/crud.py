@@ -1,4 +1,4 @@
-from .models import User, Question, Trivia
+from .models import User, Question, Trivia, Participate, Ranking
 from .database import db
 
 def register_user(name, email, hashed_password, role="jugador"):
@@ -42,15 +42,49 @@ def get_questions():
     return Question.query.all()
 
 # Crear una trivia
-def create_trivia(name, description, question_ids):
+def create_trivia(name, description, user_ids, question_ids,):
+
     trivia = Trivia(name=name, description=description)
+
     for question_id in question_ids:
         question = Question.query.get(question_id)
         trivia.questions.append(question)
+
+    for user_id in user_ids:
+        user = User.query.get(user_id)
+        trivia.users.append(user)
+
     db.session.add(trivia)
     db.session.commit()
+
     return trivia
 
 # Obtener todas las trivias
 def get_trivias():
     return Trivia.query.all()
+
+# Crear una participacion
+def create_participation(user_name, trivia_id, answers, score):
+
+    participation = Participate(user_name=user_name, trivia_id=trivia_id, answers=answers, score=score)
+
+    db.session.add(participation)
+    db.session.commit()
+    
+    return participation
+
+# Obtener todas las trivias
+def get_trivias():
+    return Trivia.query.all()
+
+
+# Crear un ranking
+def create_ranking(trivia_id, user_id, score):
+
+    ranking = Ranking(trivia_id=trivia_id, user_id=user_id, score=score)
+
+    db.session.add(ranking)
+    db.session.commit()
+    
+    return ranking
+
