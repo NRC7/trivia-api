@@ -4,12 +4,14 @@ FROM python:3.9-slim
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Copia el archivo de requerimientos y el proyecto a la imagen
-COPY requirements.txt requirements.txt
-COPY . .
+# Copia solo el archivo requirements.txt primero para aprovechar el cache de Docker
+COPY requirements.txt .
 
 # Instala las dependencias
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia el resto del código
+COPY . .
 
 # Expón el puerto 5000 donde Flask se ejecuta
 EXPOSE 5000

@@ -472,7 +472,7 @@ def create_trivia_route():
         }), 400
 
     # Crear la nueva trivia
-    new_trivia = Trivia(name=name, description=description)
+    #new_trivia = Trivia(name=name, description=description)
 
     # Obtener las preguntas de la base de datos mediante los IDs proporcionados
     question_ids = data.get('question_ids', [])
@@ -488,7 +488,7 @@ def create_trivia_route():
             }), 400
 
     # Asociar las preguntas válidas con la trivia
-    new_trivia.questions = valid_questions
+    #new_trivia.questions = valid_questions
 
     # Obtener los usuarios de la base de datos mediante los IDs proporcionados
     valid_users = []
@@ -789,9 +789,11 @@ def participate(trivia_id):
     
     # Obtener los IDs de las preguntas asociadas a la trivia
     trivia_question_ids = {question.id for question in trivia.questions}
+
     # Validar que los IDs de las respuestas del usuario estén dentro de los IDs de las preguntas de la trivia
     invalid_question_ids = set(answers.keys()).difference(trivia_question_ids)
-    if invalid_question_ids:
+    
+    if not invalid_question_ids:
         return jsonify({
             "code": "400",
             "message": f"Alguna(s) pregunta(s) no pertenece(n) a esta trivia: {list(invalid_question_ids)}"
