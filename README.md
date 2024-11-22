@@ -35,3 +35,6 @@
 2. Acceder a la API: La API estará disponible en http://localhost:5000.
 
 Nota: La base de datos SQLite se inicializa automáticamente cuando se ejecuta la API por primera vez. El archivo de base de datos trivia.db se guardará en el contenedor, pero se puede acceder a él mediante el volumen configurado.
+Nota adicional: Si deseas eliminar la base de datos y reiniciar el entorno, puedes ejecutar:
+    docker-compose down
+    docker-compose up --build
