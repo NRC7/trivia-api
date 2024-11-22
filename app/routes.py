@@ -1,10 +1,9 @@
 from flask import Flask, Blueprint, request, jsonify
-from .crud import create_user, get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email, create_participation, create_ranking
+from .crud import get_users, create_question, get_questions, create_trivia, get_trivias, register_user, get_user_by_email, create_participation, create_ranking, update_user, delete_user, update_question, delete_question, update_trivia, delete_trivia
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import BadRequest
-from app.models import Question, Trivia, Participate, Ranking, User
-from app.database import db
+from app.models import Question, Trivia, Ranking, User
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta
 import re
@@ -137,7 +136,91 @@ def get_users_route():
     }), 200
 
 
-# Rutas para preguntas
+# Endpoint para actualizar un usuario
+@main.route('/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+def update_user_route(user_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar si el usuario es administrador
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    data = request.get_json()
+
+    try:
+        updated_user = update_user(user_id, data)
+
+        if not updated_user:
+            return jsonify({
+                "code": "404",
+                "message": "Usuario no encontrado"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Usuario actualizado exitosamente",
+            "data": {
+                "id": updated_user.id,
+                "name": updated_user.name,
+                "email": updated_user.email,
+                "role": updated_user.role
+            }
+        }), 200
+
+    except IntegrityError:
+        return jsonify({
+            "code": "400",
+            "message": "Error de integridad al actualizar el usuario."
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para borrar un usuario
+@main.route('/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user_route(user_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar si el usuario es administrador
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    try:
+        result = delete_user(user_id)
+
+        if not result:
+            return jsonify({
+                "code": "404",
+                "message": "Usuario no encontrado"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Usuario eliminado exitosamente"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para crear una pregunta
 @main.route('/questions', methods=['POST'])
 @jwt_required()
 def create_question_route():
@@ -206,6 +289,7 @@ def create_question_route():
         }), 500
     
 
+# Endpoint para obtener todas las preguntas
 @main.route('/questions', methods=['GET'])
 @jwt_required()
 def get_questions_route():
@@ -270,7 +354,88 @@ def get_questions_route():
         }), 500
 
 
-# Rutas para trivias
+# Endpoint para actualizar una pregunta
+@main.route('/questions/<int:question_id>', methods=['PUT'])
+@jwt_required()
+def update_question_route(question_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    data = request.get_json()
+
+    try:
+        updated_question = update_question(question_id, data)
+
+        if not updated_question:
+            return jsonify({
+                "code": "404",
+                "message": "Pregunta no encontrada"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Pregunta actualizada exitosamente",
+            "data": {
+                "id": updated_question.id,
+                "question_text": updated_question.question_text,
+                "difficulty": updated_question.difficulty
+            }
+        }), 200
+
+    except IntegrityError:
+        return jsonify({
+            "code": "400",
+            "message": "Error de integridad al actualizar la pregunta."
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para borrar una pregunta
+@main.route('/questions/<int:question_id>', methods=['DELETE'])
+@jwt_required()
+def delete_question_route(question_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    try:
+        result = delete_question(question_id)
+
+        if not result:
+            return jsonify({
+                "code": "404",
+                "message": "Pregunta no encontrada"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Pregunta eliminada exitosamente"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para crear una trivia
 @main.route('/trivias', methods=['POST'])
 @jwt_required()
 def create_trivia_route():
@@ -346,13 +511,6 @@ def create_trivia_route():
                     data['question_ids']
                 )
 
-        # Asociar los usuarios válidos con la trivia
-        # new_trivia.users = valid_users
-
-        # # Guardar en la base de datos
-        # db.session.add(new_trivia)
-        # db.session.commit()
-
         return jsonify({
             "code": "201",
             "message": "Trivia creada exitosamente",
@@ -384,11 +542,12 @@ def create_trivia_route():
         }), 500
 
 
+# Endpoint obtener todas las trivias
 @main.route('/trivias', methods=['GET'])
 @jwt_required()
 def get_all_trivias():
     # Obtener todas las trivias de la base de datos
-    trivias = Trivia.query.all()
+    trivias = get_trivias()
 
     # Si no se encuentran trivias, devolver un error 404
     if not trivias:
@@ -414,7 +573,7 @@ def get_all_trivias():
     }), 200
 
 
-# Ruta para obtener una trivia
+# Endpoint para obtener una trivia por su id
 @main.route('/trivias/<int:trivia_id>', methods=['GET'])
 @jwt_required()
 def get_trivia_by_id(trivia_id):
@@ -442,7 +601,128 @@ def get_trivia_by_id(trivia_id):
     }), 200
 
 
-# Ruta para participar en una trivia
+# Endpoint para actualizar una trivia
+@main.route('/trivias/<int:trivia_id>', methods=['PUT'])
+@jwt_required()
+def update_trivia_route(trivia_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    data = request.get_json()
+
+    try:
+        updated_trivia = update_trivia(trivia_id, data)
+
+        if not updated_trivia:
+            return jsonify({
+                "code": "404",
+                "message": "Trivia no encontrada"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Trivia actualizada exitosamente",
+            "data": {
+                "id": updated_trivia.id,
+                "name": updated_trivia.name,
+                "description": updated_trivia.description
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para borrar una trivia
+@main.route('/trivias/<int:trivia_id>', methods=['DELETE'])
+@jwt_required()
+def delete_trivia_route(trivia_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    if current_user.role != 'admin':
+        return jsonify({
+            "code": "403",
+            "message": "Acceso denegado. Se requiere rol de administrador"
+        }), 403
+
+    try:
+        result = delete_trivia(trivia_id)
+
+        if not result:
+            return jsonify({
+                "code": "404",
+                "message": "Trivia no encontrada"
+            }), 404
+
+        return jsonify({
+            "code": "200",
+            "message": "Trivia eliminada exitosamente"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "code": "500",
+            "message": f"Error interno: {str(e)}"
+        }), 500
+
+
+# Endpoint para obtener las trivias de un usuario por su user_id
+@main.route('/users/<int:user_id>/trivias', methods=['GET'])
+def get_user_trivias(user_id):
+
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({
+            "code": "404",
+            "message": "Usuario no encontrado"
+        }), 404
+
+    # Obtener las trivias asociadas a este usuario
+    trivias = user.trivias  # Esto es posible gracias a la relación definida en el modelo User
+    
+    # Si no tiene trivias asignadas
+    if not trivias:
+        return jsonify({
+            "code": "404",
+            "message": "Este usuario no tiene trivias asignadas"
+        }), 404
+
+    # Formatear las trivias para la respuesta
+    trivias_data = []
+    for trivia in trivias:
+        trivia_data = {
+            "id": trivia.id,
+            "name": trivia.name,
+            "description": trivia.description,
+            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions]
+        }
+        trivias_data.append(trivia_data)
+
+    # Devolver la lista de trivias asignadas
+    return jsonify({
+        "code": "200",
+        "message": f"Trivias de {user.name} obtenidas exitosamente",
+        "data": trivias_data,
+        "len": len(trivias_data),
+        "user": {
+            "id": user.id,
+            "user_name": user.name
+            }
+    }), 200
+
+
+# Endpoint para que un user participe en una trivia
 @main.route('/participate/<int:trivia_id>', methods=['POST'])
 @jwt_required()
 def participate(trivia_id):
@@ -604,7 +884,7 @@ def participate(trivia_id):
         }), 500
 
 
-# Ruta para obtener el ranking de una trivia
+# Endpoint para obtener el ranking de una trivia por su trivia_id
 @main.route('/ranking/<int:trivia_id>', methods=['GET'])
 @jwt_required()
 def ranking(trivia_id):
@@ -649,47 +929,5 @@ def ranking(trivia_id):
         }
     }), 200
 
-# Ruta para obtener las trivias de un usuario en especifico
-@main.route('/users/<int:user_id>/trivias', methods=['GET'])
-def get_user_trivias(user_id):
-    # Buscar el usuario por ID
-    user = User.query.get(user_id)
-    
-    if not user:
-        return jsonify({
-            "code": "404",
-            "message": "Usuario no encontrado"
-        }), 404
 
-    # Obtener las trivias asociadas a este usuario
-    trivias = user.trivias  # Esto es posible gracias a la relación definida en el modelo User
-    
-    # Si no tiene trivias asignadas
-    if not trivias:
-        return jsonify({
-            "code": "404",
-            "message": "Este usuario no tiene trivias asignadas"
-        }), 404
 
-    # Formatear las trivias para la respuesta
-    trivias_data = []
-    for trivia in trivias:
-        trivia_data = {
-            "id": trivia.id,
-            "name": trivia.name,
-            "description": trivia.description,
-            "questions": [{"id": q.id, "question_text": q.question_text} for q in trivia.questions]
-        }
-        trivias_data.append(trivia_data)
-
-    # Devolver la lista de trivias asignadas
-    return jsonify({
-        "code": "200",
-        "message": f"Trivias de {user.name} obtenidas exitosamente",
-        "data": trivias_data,
-        "len": len(trivias_data),
-        "user": {
-            "id": user.id,
-            "user_name": user.name
-            }
-    }), 200

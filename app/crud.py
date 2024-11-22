@@ -2,26 +2,35 @@ from .models import User, Question, Trivia, Participate, Ranking
 from .database import db
 
 def register_user(name, email, hashed_password, role="jugador"):
-    """Registra un usuario con contraseña hasheada y rol."""
     user = User(name=name, email=email, password=hashed_password, role=role)
     db.session.add(user)
     db.session.commit()
     return user
 
 def get_user_by_email(email):
-    """Busca un usuario por email."""
     return User.query.filter_by(email=email).first()
-
-# Crear un usuario
-def create_user(name, email):
-    user = User(name=name, email=email)
-    db.session.add(user)
-    db.session.commit()
-    return user
 
 # Obtener todos los usuarios
 def get_users():
     return User.query.all()
+
+def update_user(user_id, new_data):
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    user.name = new_data.get('name', user.name)
+    user.email = new_data.get('email', user.email)
+    user.role = new_data.get('role', user.role)
+    db.session.commit()
+    return user
+
+def delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    db.session.delete(user)
+    db.session.commit()
+    return True
 
 # Crear una pregunta
 def create_question(question_text, correct_option, options, difficulty):
@@ -40,6 +49,27 @@ def create_question(question_text, correct_option, options, difficulty):
 # Obtener todas las preguntas
 def get_questions():
     return Question.query.all()
+
+def update_question(question_id, new_data):
+    question = Question.query.get(question_id)
+    if not question:
+        return None
+    question.question_text = new_data.get('question_text', question.question_text)
+    question.correct_option = new_data.get('correct_option', question.correct_option)
+    question.option_1 = new_data.get('options', {}).get('option_1', question.option_1)
+    question.option_2 = new_data.get('options', {}).get('option_2', question.option_2)
+    question.option_3 = new_data.get('options', {}).get('option_3', question.option_3)
+    question.difficulty = new_data.get('difficulty', question.difficulty)
+    db.session.commit()
+    return question
+
+def delete_question(question_id):
+    question = Question.query.get(question_id)
+    if not question:
+        return None
+    db.session.delete(question)
+    db.session.commit()
+    return True
 
 # Crear una trivia
 def create_trivia(name, description, user_ids, question_ids,):
@@ -62,6 +92,35 @@ def create_trivia(name, description, user_ids, question_ids,):
 # Obtener todas las trivias
 def get_trivias():
     return Trivia.query.all()
+
+def update_trivia(trivia_id, new_data):
+    trivia = Trivia.query.get(trivia_id)
+    if not trivia:
+        return None
+    trivia.name = new_data.get('name', trivia.name)
+    trivia.description = new_data.get('description', trivia.description)
+
+    # Actualizar preguntas asociadas
+    question_ids = new_data.get('question_ids', [])
+    if question_ids:
+        trivia.questions = [Question.query.get(q_id) for q_id in question_ids if Question.query.get(q_id)]
+
+    # Actualizar usuarios asociados
+    user_ids = new_data.get('user_ids', [])
+    if user_ids:
+        trivia.users = [User.query.get(u_id) for u_id in user_ids if User.query.get(u_id)]
+
+    db.session.commit()
+    return trivia
+
+def delete_trivia(trivia_id):
+    trivia = Trivia.query.get(trivia_id)
+    if not trivia:
+        return None
+    db.session.delete(trivia)
+    db.session.commit()
+    return True
+
 
 # Crear una participacion
 def create_participation(user_name, trivia_id, answers, score):
