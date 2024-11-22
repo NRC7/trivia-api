@@ -26,9 +26,9 @@ def create_app():
     db.init_app(app)
 
     # Crear la base de datos automáticamente si no existe
-    if not os.path.exists(db_path):
-        with app.app_context():
-            db.create_all()
+    # if not os.path.exists(db_path):
+    with app.app_context():
+        db.create_all()
 
     # Inicializar extensiones jwt        
     jwt = JWTManager(app)
