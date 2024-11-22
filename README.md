@@ -22,7 +22,7 @@
 2. Clonar este repositorio:
    ```bash
    git clone https://github.com/nrc7/trivia-api.git
-   cd nombre_del_repositorio
+   cd trivia-api
 
 ## Ejecutar el proyecto con Docker Compose
 - Este proyecto está configurado para ejecutarse mediante Docker Compose. Sigue estos pasos para ponerlo en funcionamiento:
