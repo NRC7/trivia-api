@@ -33,3 +33,7 @@ Desktop.ini
 
 # Otros
 *.bak
+
+# Ignorar bases de datos
+test.db
+trivia.db
