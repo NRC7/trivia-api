@@ -6,8 +6,11 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=sqlite:///trivia.db  # Aquí es donde Docker tomará las variables del archivo .env
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}  # Asegúrate de que la variable JWT_SECRET_KEY esté en el archivo .env
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     volumes:
-      - .:/app
-    command: flask run --host=0.0.0.0
+      - .:/app                           # Volumen para sincronizar el código
+      - db_data:/app/trivia.db           # Volumen para persistir la base de datos
+    command: flask run --host=0.0.0.0    # Ejecuta la aplicación
+
+volumes:
+  db_data:                               # Volumen para persistencia de la base de datos

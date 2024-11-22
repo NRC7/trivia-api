@@ -7,15 +7,14 @@ from app.models import Question, Trivia, Ranking, User
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta
 import re
-
+import os
 
 app = Flask(__name__)
 
-# Crear el Blueprint
 main = Blueprint('main', __name__)
 
-# Configuración secreta para JWT (recomendación: usar variables de entorno)
-app.config["JWT_SECRET_KEY"] = "your-secret-key"  # Cambia esto en producción
+# Configuración JWT
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 jwt = JWTManager(app)
 
 # Endpoint para registrar usuarios
@@ -548,6 +547,18 @@ def create_trivia_route():
 def get_all_trivias():
     # Obtener todas las trivias de la base de datos
     trivias = get_trivias()
+
+    # Obtener el usuario autenticado desde el token
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+
+    # Verificar que el usuario exista (opcional, según requisitos)
+    if not current_user:
+        return jsonify({
+            "code": "401",
+            "message": "La sesión ha caducado, por favor inicia sesión nuevamente."
+        }), 403
+    
 
     # Si no se encuentran trivias, devolver un error 404
     if not trivias:

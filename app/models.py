@@ -7,12 +7,14 @@ trivia_questions = db.Table(
     db.Column('question_id', db.Integer, db.ForeignKey('question.id'), primary_key=True)
 )
 
+
 # Tabla de asociación para la relación muchos a muchos entre Trivia y User
 trivia_users = db.Table(
     'trivia_users',
     db.Column('trivia_id', db.Integer, db.ForeignKey('trivia.id'), primary_key=True),
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
 )
+
 
 class Trivia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -35,7 +37,6 @@ class Trivia(db.Model):
         return f'<Trivia {self.name}>'
 
 
-
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     question_text = db.Column(db.String(255), nullable=False)
@@ -48,13 +49,14 @@ class Question(db.Model):
 
     def __repr__(self):
         return f'<Question {self.question_text}>'
+    
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)  # Contraseña hasheada
-    role = db.Column(db.String(20), nullable=False, default="jugador")  # Rol del usuario
+    password = db.Column(db.String(255), nullable=False)  # Pass hasheada
+    role = db.Column(db.String(20), nullable=False, default="jugador")
 
     # Relación con trivias a través de la tabla intermedia trivia_users
     trivias = db.relationship('Trivia', secondary=trivia_users, back_populates='users')
@@ -62,10 +64,10 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.name}>'
     
-    # Tabla para almacenar las participaciones de los usuarios
+    
 class Participate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_name = db.Column(db.String(100), db.ForeignKey('user.name'), nullable=False)  # Usamos user_id en vez de user_name
+    user_name = db.Column(db.String(100), db.ForeignKey('user.name'), nullable=False)
     trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
     answers = db.Column(db.JSON, nullable=False)
     score = db.Column(db.Integer, nullable=False)
@@ -83,14 +85,14 @@ class Participate(db.Model):
 class Ranking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     trivia_id = db.Column(db.Integer, db.ForeignKey('trivia.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Usamos user_id en vez de user_name
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     score = db.Column(db.Integer, nullable=False)
 
     # Relación con Trivia
     trivia = db.relationship('Trivia', back_populates='rankings')
 
     # Relación con User
-    user = db.relationship('User', backref='rankings')  # Relación con el modelo User
+    user = db.relationship('User', backref='rankings')
 
     def __repr__(self):
         return f'<Ranking {self.user_id}>'

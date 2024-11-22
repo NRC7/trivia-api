@@ -1,12 +1,14 @@
 from .models import User, Question, Trivia, Participate, Ranking
 from .database import db
 
+# Registrar un usuario
 def register_user(name, email, hashed_password, role="jugador"):
     user = User(name=name, email=email, password=hashed_password, role=role)
     db.session.add(user)
     db.session.commit()
     return user
 
+# Obtener un usuario por campo email
 def get_user_by_email(email):
     return User.query.filter_by(email=email).first()
 
@@ -14,6 +16,7 @@ def get_user_by_email(email):
 def get_users():
     return User.query.all()
 
+# Actualizar/Modificar un usuario
 def update_user(user_id, new_data):
     user = User.query.get(user_id)
     if not user:
@@ -24,6 +27,7 @@ def update_user(user_id, new_data):
     db.session.commit()
     return user
 
+# Borrar un usuario
 def delete_user(user_id):
     user = User.query.get(user_id)
     if not user:
@@ -50,6 +54,7 @@ def create_question(question_text, correct_option, options, difficulty):
 def get_questions():
     return Question.query.all()
 
+# Actualizar/Modificar una pregunta
 def update_question(question_id, new_data):
     question = Question.query.get(question_id)
     if not question:
@@ -63,6 +68,7 @@ def update_question(question_id, new_data):
     db.session.commit()
     return question
 
+# Borrar una pregunta
 def delete_question(question_id):
     question = Question.query.get(question_id)
     if not question:
@@ -93,6 +99,7 @@ def create_trivia(name, description, user_ids, question_ids,):
 def get_trivias():
     return Trivia.query.all()
 
+# Actualizar/Modificar una trivia
 def update_trivia(trivia_id, new_data):
     trivia = Trivia.query.get(trivia_id)
     if not trivia:
@@ -113,6 +120,7 @@ def update_trivia(trivia_id, new_data):
     db.session.commit()
     return trivia
 
+# Borrar una trivia
 def delete_trivia(trivia_id):
     trivia = Trivia.query.get(trivia_id)
     if not trivia:
